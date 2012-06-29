@@ -7,6 +7,10 @@ using Microsoft.Xna.Framework;
 using TEditXNA.Terraria.Objects;
 using BCCL.Geometry.Primitives;
 using Vector2 = BCCL.Geometry.Primitives.Vector2;
+using Ionic.Zip;
+using System.Web.Script.Serialization;
+using System.Text.RegularExpressions;
+using System.Collections;
 
 namespace TEditXNA.Terraria
 {
@@ -609,8 +613,561 @@ namespace TEditXNA.Terraria
             BloodMoon = false;
         }
 
+        public static World LoadWorldTC(string filename)
+        {
+            World w = new World();
+            try
+            {
+                MemoryStream data = new MemoryStream();
+                MemoryStream tiles = new MemoryStream();
+                MemoryStream NPCs = new MemoryStream();
+                MemoryStream NPCNames = new MemoryStream();
+                MemoryStream signs = new MemoryStream();
+                MemoryStream tileData = new MemoryStream();
+                MemoryStream globalData = new MemoryStream();
+                MemoryStream chests = new MemoryStream();
+                MemoryStream chestData = new MemoryStream();
+
+                using (ZipFile zip = ZipFile.Read(filename))
+                {
+                    foreach (ZipEntry e in zip)
+                    {
+                        string name = e.FileName.ToLower();
+                        if (name == "world.txt") e.Extract(data);
+                        else if (name == "world.tiles") e.Extract(tiles);
+                        else if (name == "world.npcs") e.Extract(NPCs);
+                        else if (name == "world.npcnames") e.Extract(NPCNames);
+                        else if (name == "world.signs") e.Extract(signs);
+                        else if (name == "world.tiles.moddata") e.Extract(tileData);
+                        else if (name == "world.global.moddata") e.Extract(globalData);
+                        else if (name == "world.chests") e.Extract(chests);
+                        else if (name == "world.chests.moddata") e.Extract(chestData);
+                    }
+                    //zip.Dispose();
+                }
+                data.Position = 0;
+                tiles.Position = 0;
+                NPCs.Position = 0;
+                NPCNames.Position = 0;
+                signs.Position = 0;
+                tileData.Position = 0;
+                globalData.Position = 0;
+                chests.Position = 0;
+                chestData.Position = 0;
+
+                //Load version number (from somewhere)
+                int release = 39;
+                int version = 4;
+
+                int[] versions = loadWorldData(w, data);
+
+                release = versions[0];
+                version = versions[1];
+                loadWorldTiles(w, release, tiles);
+                loadWorldChests(w, release, chests, chestData);
+                loadWorldNPCs(w, release, NPCs);
+                loadWorldNPCNames(w, release, NPCNames);
+                loadWorldSigns(w, release, signs);
+
+                /*Config.LoadGlobalModData(globalData, "ModWorld");
+
+                Config.LoadCustomTileData(tileData, version);
+                */
+
+                OnProgressChanged(null, new ProgressChangedEventArgs(0, "World Load Complete."));
+                w.LastSave = File.GetLastWriteTimeUtc(filename);
+            }
+            catch (Exception e)
+            {
+                //Debug.WriteLine("Load exception:\n" + e);
+                return w;
+            }
+            return w;
+        }
+        public static int[] loadWorldData(World w, MemoryStream stream)
+        {
+            //string savePath = Path.Combine(Main.worldTempPath, "world.txt");
+            //stream.Position = 0;
+            StreamReader reader = new StreamReader(stream);
+            string data = reader.ReadToEnd();
+            //Debug.WriteLine("stream:\n" + data);
+
+            Regex.Replace(data, @"\s", "");
+            Dictionary<string, object> dict = new Dictionary<string, object>();
+            JavaScriptSerializer ser = new JavaScriptSerializer();
+            dict = ser.Deserialize<Dictionary<string, object>>(data);
+
+            int tConfigRelease = (int)dict["tConfig save version"];
+
+            Dictionary<string, object> header = (Dictionary<string, object>)dict["header"];
+            int baseVersion = (int)header["baseversion"];
+
+            w.Version = (uint) baseVersion; //now we care about the version
+            w.Title = header["name"].ToString();
+
+
+            ArrayList rect = (ArrayList)header["worldrect"];
+            w.WorldId = (int)header["ID"];
+            w.LeftWorld = (float)(int)rect[0];
+            w.RightWorld = (float)(int)rect[1];
+            w.TopWorld = (float)(int)rect[2];
+            w.BottomWorld = (float)(int)rect[3];
+
+            w.TilesHigh = (int)header["height"];
+            w.TilesWide = (int)header["width"];
+
+            if (w.TilesHigh > 10000 || w.TilesWide > 10000 || w.TilesHigh <= 0 || w.TilesWide <= 0)
+                throw new FileLoadException(string.Format("Invalid File: {0}", "File!?"));
+
+            ArrayList spawn = (ArrayList)header["spawn"];
+            w.SpawnX = (int)spawn[0];
+            w.SpawnY = (int)spawn[1];
+            w.GroundLevel = (int)header["groundlevel"];
+            w.RockLevel = (int)header["rocklevel"];
+
+            // read world flags
+            w.Time = Convert.ToSingle(header["time"], System.Globalization.CultureInfo.InvariantCulture.NumberFormat);
+            w.DayTime = Convert.ToBoolean((int)header["is_day"]);
+            w.MoonPhase = (int)header["moonphase"];
+            w.BloodMoon =  Convert.ToBoolean((int)header["is_bloodmoon"]);
+            ArrayList dung = (ArrayList)header["dungeon_xy"];
+            w.DungeonX = (int)dung[0];
+            w.DungeonY = (int)dung[1];
+
+            ArrayList slainBoss = (ArrayList)header["bosses_slain"];
+            w.DownedBoss1 = Convert.ToBoolean((int)slainBoss[0]);
+            w.DownedBoss2 = Convert.ToBoolean((int)slainBoss[1]);
+            w.DownedBoss3 = Convert.ToBoolean((int)slainBoss[2]);
+
+            ArrayList savedNPCs = (ArrayList)header["npcs_saved"];
+            w.SavedGoblin = Convert.ToBoolean((int)savedNPCs[0]);
+            w.SavedWizard = Convert.ToBoolean((int)savedNPCs[1]);
+            if (w.Version >= 34)
+                w.SavedMech = Convert.ToBoolean((int)savedNPCs[2]);
+
+            ArrayList downed = (ArrayList)header["special_slain"];
+            w.DownedGoblins = Convert.ToBoolean((int)downed[0]);
+            w.DownedClown = Convert.ToBoolean((int)downed[1]);
+            w.DownedFrost = Convert.ToBoolean((int)downed[2]);
+
+            w.ShadowOrbSmashed = Convert.ToBoolean((int)header["is_a_shadow_orb_broken"]);
+            w.SpawnMeteor = Convert.ToBoolean((int)header["is_meteor_spawned"]);
+            w.ShadowOrbCount = (int)header["shadow_orbs_broken"];
+
+            w.AltarCount = (int)header["altars_broken"];
+            w.HardMode = Convert.ToBoolean((int)header["hardmode"]);
+
+            w.InvasionDelay = (int)header["gob_inv_time"];
+            w.InvasionSize = (int)header["gob_inv_size"];
+            w.InvasionType = (int)header["gob_inv_type"];
+            w.InvasionX = Convert.ToSingle(header["gob_inv_x"], System.Globalization.CultureInfo.InvariantCulture.NumberFormat);
+
+            //Custom tConfig info comes next...
+            /*
+            ArrayList tiles = (ArrayList)dict["tiles"];
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                ArrayList thetile = (ArrayList)tiles[i];
+                int id = (int)thetile[0];
+                string name = thetile[1].ToString();
+                Config.tileDefs.load[id] = name;
+            }
+
+            Dictionary<string, object> modtiles = (Dictionary<string, object>)dict["modtiles"];
+            foreach (string str in modtiles.Keys)
+            {
+                ArrayList arr = (ArrayList)modtiles[str];
+                foreach (int id in arr)
+                    Config.tileDefs.loadModname[id] = str;
+            }
+
+            Dictionary<string, object> modwalls = (Dictionary<string, object>)dict["modwalls"];
+            foreach (string str in modwalls.Keys)
+            {
+                ArrayList arr = (ArrayList)modwalls[str];
+                foreach (int id in arr)
+                    Config.wallDefs.loadModname[id] = str;
+            }
+
+            ArrayList walls = (ArrayList)dict["walls"];
+            for (int i = 0; i < walls.Count; i++)
+            {
+                ArrayList thewall = (ArrayList)walls[i];
+                int id = (int)thewall[0];
+                string name = thewall[1].ToString();
+                Debug.WriteLine("Wall load:" + id + "=" + name);
+                Config.wallDefs.load[id] = name;
+            }
+
+            ArrayList modVersions = (ArrayList)dict["mods"];
+            for (int i = 0; i < modVersions.Count; i++)
+            {
+                ArrayList theversion = (ArrayList)modVersions[i];
+                string name = theversion[0].ToString();
+                int v = (int)theversion[1];
+                Config.loadedVersion[name] = v;
+            }
+
+            // bool unloadedItemCheck = false;
+            ArrayList items = (ArrayList)dict["items"];
+            //int lastID=0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                ArrayList theitem = (ArrayList)items[i];
+                int id = (int)theitem[0];
+                string name = theitem[1].ToString();
+                Config.itemDefs.worldLoad[id] = name;
+                //if (name == "Unloaded Item") unloadedItemCheck = true;
+                //lastID=id;
+            }
+            // if (!unloadedItemCheck) Config.itemDefs.worldLoad[lastID + 1] = "Unloaded Item";
+
+            Dictionary<string, object> npcnames = (Dictionary<string, object>)dict["npcnames"];
+            foreach (string key in npcnames.Keys)
+            {
+                //int id = Convert.ToInt32(key);
+                string name = npcnames[key].ToString();
+                Debug.WriteLine("Assigning NPC name for " + key + " to " + name);
+                try
+                {
+                    Main.chrName[Config.npcDefs.byName[key].type] = name;
+                }
+                catch (Exception e)
+                {
+                    throw new Exception("Error: NPC " + key + " is unknown, are you missing a mod?");
+                }
+            }*/
+            // Main.chrName[Main.npc[num7].type] = newReader.ReadString()
+            return new int[] { baseVersion, tConfigRelease };
+        }
+        public static bool loadWorldTiles(World w, int num, MemoryStream fileStream)
+        {
+            //Tile.activeArr = new byte[1000];
+            //string savePath = Path.Combine(Main.worldTempPath, "world.tiles");
+            //using (FileStream fileStream = new FileStream(savePath, FileMode.Open))
+            //{
+            // Main.tile.Init();
+            using (BinaryReader b = new BinaryReader(fileStream))
+            {
+                try
+                {
+                    w.Tiles = new Tile[w.TilesWide, w.TilesHigh];
+                    for (int x = 0; x < w.TilesWide; ++x)
+                    {
+                        OnProgressChanged(null, new ProgressChangedEventArgs(x.ProgressPercentage(w.TilesWide), "Loading Tiles..."));
+
+                        Tile prevtype = new Tile();
+                        for (int y = 0; y < w.TilesHigh; y++)
+                        {
+
+                            var tile = new Tile();
+
+                            //if (num >= 100) tile.Type = (ushort)b.ReadInt16();
+                            //else 
+                            tile.Type = b.ReadByte();
+
+                            if (tile.Type == 0) tile.IsActive = false;
+                            else
+                            {
+                                tile.IsActive = true;
+
+                                tile.Type = (byte)(tile.Type - 1);
+                                var tileProperty = TileProperties[tile.Type];
+                                if (string.Equals(tileProperty.Name, "UNKNOWN", StringComparison.InvariantCultureIgnoreCase))
+                                {
+                                    throw new ArgumentOutOfRangeException(string.Format("Unknown tile tile: {0}, please add tile id {0} too your settings.xml.\r\nBE SURE TO INCLUDE THE isFramed PROPERTY (sprites=true, blocks=false).\r\nYou are seeing this message due to an update or mod.", tile.Type));
+                                }
+                                //tConfig code for handling custom tiles
+                                /*
+                                //newcode
+                                if (Main.tile[j, k].type >= Main.maxTileSets)
+                                {
+                                    string name = Config.tileDefs.load[Main.tile[j, k].type];
+                                    int ID = 0;
+                                    if (!String.IsNullOrEmpty(name) && Config.tileDefs.ID.TryGetValue(name, out ID))
+                                    {
+                                        //Debug.WriteLine("Updating tile type:" + Main.tile[j, num5].type + " to " + Main.tileID[Main.tileLoad[Main.tile[j, num5].type]]);
+                                        Main.tile[j, k].type = (ushort)ID;
+                                    }
+                                    else if (Main.tile[j, k].type >= Main.maxTileSets)// + Config.customTileAmt)// || String.IsNullOrWhiteSpace(Main.tileName[Main.tile[j, k].type]))
+                                    {
+                                        Debug.WriteLine("World Load Error: Tile " + Main.tile[j, k].type + " does not exist");
+                                        //loadSuccess = false;
+                                        //loadFailed = true;
+                                        binaryReader.Close();
+                                        fileStream.Close();
+                                        string tilename = Main.tile[j, k].type.ToString();
+                                        Config.tileDefs.load.TryGetValue(Main.tile[j, k].type, out tilename);
+                                        string mess = "Tile '" + tilename + "' does not exist";
+                                        string modname = "";
+                                        if (Config.tileDefs.loadModname.TryGetValue(Main.tile[j, k].type, out modname))
+                                            mess += "\nMod '" + modname + "' needs to be loaded";
+                                        throw new Exception(mess);
+                                        return false;
+                                    }
+                                }*/
+
+                                if (tile.Type == (int)sbyte.MaxValue)
+                                    tile.IsActive = false;
+
+                                if (tileProperty.IsFramed)
+                                {
+                                    // torches didn't have extra in older versions.
+                                    if (w.Version < 28 && tile.Type == 4)
+                                    {
+                                        tile.U = 0;
+                                        tile.V = 0;
+                                    }
+                                    else
+                                    {
+                                        tile.U = b.ReadInt16();
+                                        tile.V = b.ReadInt16();
+                                        //if (tile.Type == 128) //armor stand
+                                        //    tile.Frame = new PointShort((short)(tile.Frame.X % 100), tile.Frame.Y);
+
+                                        if ((int)tile.Type == 144) //timer
+                                            tile.V = 0;
+                                    }
+                                }
+                                else
+                                {
+                                    tile.U = -1;
+                                    tile.V = -1;
+                                }
+                            }
+
+                            tile.Wall = b.ReadByte();
+
+                            //tConfig code for handling custom walls
+                            /*
+                            if (Main.tile[j, k].wall >= Main.maxWallTypes)
+                            {
+                                string name = Config.wallDefs.load[Main.tile[j, k].wall];
+                                int ID = 0;
+                                if (!String.IsNullOrEmpty(name) && Config.wallDefs.ID.TryGetValue(name, out ID))
+                                {
+                                    Main.tile[j, k].wall = (byte)ID;
+                                }
+                                else if (Main.tile[j, k].wall >= Main.maxWallTypes + Config.customWallAmt || String.IsNullOrWhiteSpace(Config.wallDefs.name[Main.tile[j, k].wall]))
+                                {
+                                    Debug.WriteLine("World Load Error: Wall " + Main.tile[j, k].wall + " does not exist");
+                                    //loadSuccess = false;
+                                    //loadFailed = true;
+                                    binaryReader.Close();
+                                    fileStream.Close();
+
+                                    string tilename = Main.tile[j, k].wall.ToString();
+                                    Config.wallDefs.load.TryGetValue(Main.tile[j, k].wall, out tilename);
+                                    string mess = "Wall " + tilename + " does not exist";
+                                    string modname = "";
+                                    if (Config.wallDefs.loadModname.TryGetValue(Main.tile[j, k].wall, out modname))
+                                        mess += "\nMod " + modname + " needs to be loaded";
+                                    throw new Exception(mess);
+                                    return false;
+                                }
+                            }*/
+
+                            tile.Liquid = b.ReadByte();
+                            if (tile.Liquid > 0) tile.IsLava = b.ReadBoolean();
+
+                            tile.HasWire = b.ReadBoolean();
+
+                            w.Tiles[x, y] = tile;
+
+                            var ptype = (Tile)prevtype.Clone();
+                            prevtype = (Tile)tile.Clone();
+
+                            int rle = b.ReadInt16();
+                            if (rle > 0)
+                            {
+                                for (int r = y + 1; r < y + rle + 1; r++)
+                                {
+                                    var tcopy = (Tile)tile.Clone();
+                                    w.Tiles[x, r] = tcopy;
+                                }
+                                y += rle;
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    b.Close();
+                    fileStream.Close();
+                    throw new Exception("Error loading tiles\n" + e.Message);
+                }
+                b.Close();
+                fileStream.Close();
+            }
+            return true;
+        }
+        public static bool loadWorldChests(World w, int num, MemoryStream fileStream, MemoryStream modStream)
+        {
+            //string savePath = Path.Combine(Main.worldTempPath, "world.chests");
+            //string modSavePath = Path.Combine(Main.worldTempPath, "world.chests.moddata");
+            //using (FileStream fileStream = new FileStream(savePath, FileMode.Open))
+            //{
+            using (BinaryReader b = new BinaryReader(fileStream))
+            {
+                //BinaryReader modReader = new BinaryReader(modStream); //This stream contains mod data
+                try
+                {
+                    w.Chests.Clear();
+                    OnProgressChanged(null, new ProgressChangedEventArgs(100, "Loading Chests..."));
+                    for (int i = 0; i < 1000; i++)
+                    {
+                        if (b.ReadBoolean())
+                        {
+                            var chest = new Chest(b.ReadInt32(), b.ReadInt32());
+                            for (int slot = 0; slot < Chest.MaxItems; slot++)
+                            {
+                                var stackSize = b.ReadByte();
+                                chest.Items[slot].StackSize = stackSize;
+                                if (chest.Items[slot].StackSize > 0)
+                                {
+                                    if (w.Version >= 38)
+                                        chest.Items[slot].NetId = b.ReadInt32();
+                                    else
+                                        chest.Items[slot].SetFromName(b.ReadString());
+
+                                    chest.Items[slot].StackSize = stackSize;
+                                    // Read prefix
+                                    if (w.Version >= 36)
+                                        chest.Items[slot].Prefix = b.ReadByte();
+
+                                    //Unique ID value associates this item with mod data
+                                    chest.Items[slot].ModId = b.ReadUInt16();
+                                }
+                            }
+                            w.Chests.Add(chest);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                   // modReader.Close();
+                    modStream.Close();
+
+                    b.Close();
+                    fileStream.Close();
+                    throw new Exception("Error loading chests\n" + e);
+                }
+                //modReader.Close();
+                modStream.Close();
+                b.Close();
+                fileStream.Close();
+            }
+            return true;
+        }
+        public static bool loadWorldSigns(World w, int num, MemoryStream fileStream)
+        {
+            //string savePath = Path.Combine(Main.worldTempPath, "world.signs");
+            //using (FileStream fileStream = new FileStream(savePath, FileMode.Open))
+            //{
+            using (BinaryReader b = new BinaryReader(fileStream))
+            {
+                try
+                {
+                    w.Signs.Clear();
+                    OnProgressChanged(null, new ProgressChangedEventArgs(100, "Loading Signs..."));
+                    for (int i = 0; i < 1000; i++)
+                    {
+                        if (b.ReadBoolean())
+                        {
+                            Sign sign = new Sign();
+                            sign.Text = b.ReadString();
+                            sign.X = b.ReadInt32();
+                            sign.Y = b.ReadInt32();
+                            w.Signs.Add(sign);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    b.Close();
+                    fileStream.Close();
+                    throw new Exception("Error loading signs\n" + e);
+                }
+                b.Close();
+                fileStream.Close();
+            }
+            return true;
+        }
+        public static bool loadWorldNPCs(World w, int num, MemoryStream fileStream)
+        {
+            //string savePath = Path.Combine(Main.worldTempPath, "world.NPCs");
+            //using (FileStream fileStream = new FileStream(savePath, FileMode.Open))
+            //{
+            using (BinaryReader b = new BinaryReader(fileStream))
+            {
+                try
+                {
+                    w.NPCs.Clear();
+                    OnProgressChanged(null, new ProgressChangedEventArgs(100, "Loading NPC Data..."));
+                    while (b.ReadBoolean())
+                    {
+                        var npc = new NPC();
+                        npc.Name = b.ReadString();
+                        npc.Position = new Vector2(b.ReadSingle(), b.ReadSingle());
+                        npc.IsHomeless = b.ReadBoolean();
+                        npc.Home = new Vector2Int32(b.ReadInt32(), b.ReadInt32());
+                        npc.SpriteId = 0;
+                        if (NpcIds.ContainsKey(npc.Name))
+                            npc.SpriteId = NpcIds[npc.Name];
+
+                        w.NPCs.Add(npc);
+                    }
+                }
+                catch (Exception e)
+                {
+                    b.Close();
+                    fileStream.Close();
+                    throw new Exception("Error loading NPCs\n" + e);
+                }
+                b.Close();
+                fileStream.Close();
+            }
+            return true;
+        }
+        public static bool loadWorldNPCNames(World w, int num, MemoryStream fileStream)
+        {
+            //string savePath = Path.Combine(Main.worldTempPath, "world.npcnames");
+            //using (FileStream fileStream = new FileStream(savePath, FileMode.Open))
+            //{
+            using (BinaryReader b = new BinaryReader(fileStream))
+            {
+                try
+                {
+                    OnProgressChanged(null, new ProgressChangedEventArgs(100, "Loading NPC Names..."));
+                    w.CharacterNames.Add(new NpcName(17, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(18, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(19, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(20, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(22, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(54, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(38, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(107, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(108, b.ReadString()));
+                    w.CharacterNames.Add(new NpcName(124, b.ReadString()));
+                }
+                catch (Exception e)
+                {
+                    b.Close();
+                    fileStream.Close();
+                    throw new Exception("Error loading NPC names\n" + e);
+                }
+                b.Close();
+                fileStream.Close();
+            }
+            return true;
+        }
+      
         public static World LoadWorld(string filename)
         {
+            if (filename.IndexOf(".wld") == -1)
+            { //Load tConfig-formatted world
+                return LoadWorldTC(filename);
+            }
             var w = new World();
             try
             {

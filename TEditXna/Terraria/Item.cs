@@ -17,6 +17,8 @@ namespace TEditXNA.Terraria
         private byte _prefix;
         private int _netId;
 
+        private ushort _modId;
+
 
         public int NetId
         {
@@ -57,10 +59,17 @@ namespace TEditXNA.Terraria
             set { Set("Prefix", ref _prefix, value); }
         }
 
+        public ushort ModId
+        {
+            get { return _modId; }
+            set { Set("ModId", ref _modId, value); }
+        }
+
         public Item()
         {
             StackSize = 0;
             NetId = 0;
+            ModId = 0;
         }
 
         public Item(int stackSize, int netId)
