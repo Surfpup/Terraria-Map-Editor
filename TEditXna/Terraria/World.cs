@@ -12,6 +12,7 @@ using System.Web.Script.Serialization;
 using System.Text.RegularExpressions;
 using System.Collections;
 using TEditXna.Terraria;
+using Gajatko.IniFiles;
 
 namespace TEditXNA.Terraria
 {
@@ -777,16 +778,11 @@ namespace TEditXNA.Terraria
                 int id = (int)thetile[0];
                 string name = thetile[1].ToString();
                 Config.tileDefs.load[id] = name;
-                TileProperty p = new TileProperty();
-                p.Id = id;
-                p.Name = name;
-                p.IsFramed = Convert.ToBoolean((int)thetile[2]);
-                p.IsSolid = Convert.ToBoolean((int)thetile[3]);
+                Config.tileDefs.color[id] = (ArrayList)thetile[4];
+              // p.IsFramed = Convert.ToBoolean((int)thetile[2]);
+              //  p.IsSolid = Convert.ToBoolean((int)thetile[3]);
 
-                ArrayList colors = (ArrayList)thetile[4];
-                p.Color = System.Windows.Media.Color.FromArgb(255, (byte)(int)colors[0], (byte)(int)colors[1], (byte)(int)colors[2]);
-
-                _tileProperties[id] = p;
+                //
             }
 
             ArrayList walls = (ArrayList)dict["walls"];
@@ -825,10 +821,62 @@ namespace TEditXNA.Terraria
                 foreach (int id in arr)
                 {
                     Config.tileDefs.loadModname[id] = str;
-                    Config.world._textureDictionary.LoadCustom(id, str, Config.tileDefs.load[id]);
                 }
             }
 
+            foreach (int id in Config.tileDefs.loadModname.Keys)
+            {
+                Console.WriteLine("Loading tile " + Config.tileDefs.load[id] + " (" + id + ") from mod " + Config.tileDefs.loadModname[id]);
+
+                string iniPath = string.Concat(new object[]
+		        {
+			        Environment.GetFolderPath(Environment.SpecialFolder.Personal), 
+			        Path.DirectorySeparatorChar, 
+			        "My Games", 
+			        Path.DirectorySeparatorChar, 
+			        "Terraria",
+                    Path.DirectorySeparatorChar, 
+                    "ModPacks",
+                    Path.DirectorySeparatorChar, 
+                    Config.tileDefs.loadModname[id],
+                    Path.DirectorySeparatorChar, 
+                    "Tile",
+                    Path.DirectorySeparatorChar,
+                    Config.tileDefs.load[id]+".ini"
+		        });
+
+                TileProperty p = new TileProperty();
+                p.Id = id;
+                p.Name = Config.tileDefs.load[id];
+               // p.IsFramed = Convert.ToBoolean((int)thetile[2]);
+              //  p.IsSolid = Convert.ToBoolean((int)thetile[3]);
+
+                IniFile ini = IniFile.FromFile(iniPath);
+
+                p.IsFramed = Convert.ToBoolean(ini["Stats"]["FrameImportant"]);
+                p.IsSolid = Convert.ToBoolean(ini["Stats"]["Solid"]);
+                p.IsSolidTop = Convert.ToBoolean(ini["Stats"]["SolidTop"]);
+                p.IsLight = Convert.ToBoolean(ini["Stats"]["BlockLight"]);
+                p.FrameSize = new Vector2Short((short)Convert.ToInt32(ini["Stats"]["Width"]), (short)Convert.ToInt32(ini["Stats"]["Height"]));
+                p.IsLight = Convert.ToBoolean(ini["Stats"]["BlockLight"]);
+                p.TextureGrid = new Vector2Short(16, 16);
+                p.IsStone = Convert.ToBoolean(ini["Stats"]["Stone"]);
+                p.CanBlend = Convert.ToBoolean(ini["Stats"]["MergeDirt"]);
+
+                //curTile.Placement = InLineEnumTryParse<FramePlacement>((string)xElement.Attribute("Placement"));
+                //curTile.TextureGrid = StringToVector2Short((string)xElement.Attribute("TextureGrid"), 16, 16);
+                //curTile.IsGrass = "Grass".Equals((string)xElement.Attribute("Special")); /* Heathtech */
+                //curTile.IsPlatform = "Platform".Equals((string)xElement.Attribute("Special")); /* Heathtech */
+                //curTile.IsCactus = "Cactus".Equals((string)xElement.Attribute("Special")); /* Heathtech */
+                //curTile.IsStone = (bool?)xElement.Attribute("Stone") ?? false; /* Heathtech */
+                //curTile.CanBlend = (bool?)xElement.Attribute("Blends") ?? false; /* Heathtech */
+                //curTile.MergeWith = (int?)xElement.Attribute("MergeWith") ?? null; /* Heathtech */
+
+                ArrayList colors = Config.tileDefs.color[id];
+                p.Color = System.Windows.Media.Color.FromArgb(255, (byte)(int)colors[0], (byte)(int)colors[1], (byte)(int)colors[2]);
+                _tileProperties[id] = p;
+                Config.world._textureDictionary.LoadCustom(id, Config.tileDefs.loadModname[id], Config.tileDefs.load[id], "tile");
+            }
           //  
           //  Config.wallDefs.loadModname = new Dictionary<int, string>();
             Dictionary<string, object> modwalls = (Dictionary<string, object>)dict["modwalls"];
@@ -838,7 +886,7 @@ namespace TEditXNA.Terraria
                 foreach (int id in arr)
                 {
                     Config.wallDefs.loadModname[id] = str;
-                    Config.world._textureDictionary.LoadCustomWall(id, str, Config.wallDefs.load[id]);
+                    Config.world._textureDictionary.LoadCustom(id, str, Config.wallDefs.load[id], "wall");
                 }
             }
 

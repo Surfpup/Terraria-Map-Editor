@@ -138,6 +138,10 @@
     <Compile Include="Terraria\Chest.cs" />
     <Compile Include="Terraria\Config.cs" />
     <Compile Include="Terraria\DictionaryHandler.cs" />
+    <Compile Include="Terraria\IniFileElement.cs" />
+    <Compile Include="Terraria\IniFileLight.cs" />
+    <Compile Include="Terraria\IniFiles.cs" />
+    <Compile Include="Terraria\IniReader.cs" />
     <Compile Include="Terraria\Item.cs" />
     <Compile Include="Terraria\ItemDefHandler.cs" />
     <Compile Include="Terraria\NPC.cs" />
@@ -386,7 +390,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties BuildVersion_AssemblyInfoFilename="Properties\AssemblyInfo.cs" BuildVersion_UseGlobalSettings="True" />
+      <UserProperties BuildVersion_UseGlobalSettings="True" BuildVersion_AssemblyInfoFilename="Properties\AssemblyInfo.cs" />
     </VisualStudio>
   </ProjectExtensions>
   <PropertyGroup>

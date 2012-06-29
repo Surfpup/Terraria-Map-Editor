@@ -47,63 +47,7 @@ namespace TEditXNA.Terraria
         {
             get { return _cm != null; }
         }
-        public void LoadCustom(int num, string modname, string name) {
-            string SavePath = string.Concat(new object[]
-		    {
-			    Environment.GetFolderPath(Environment.SpecialFolder.Personal), 
-			    Path.DirectorySeparatorChar, 
-			    "My Games", 
-			    Path.DirectorySeparatorChar, 
-			    "Terraria"
-		    });
-            string folder=SavePath+Path.DirectorySeparatorChar+"ModPacks"+Path.DirectorySeparatorChar+modname+Path.DirectorySeparatorChar+"Tile"+Path.DirectorySeparatorChar+name+".png";
-            FileStream f = new FileStream(folder, FileMode.Open);
-            //MemoryStream textureStream = new MemoryStream(reader.ReadBytes(textureBytes));
 
-            PresentationParameters p = new PresentationParameters();
-            p.DeviceWindowHandle = GraphicsAdapter.DefaultAdapter.MonitorHandle;
-            var loadTexture = Texture2D.FromStream(new GraphicsDevice(GraphicsAdapter.DefaultAdapter, GraphicsProfile.HiDef, p), f);
-            var pixels = new Color[loadTexture.Height * loadTexture.Width];
-            loadTexture.GetData(pixels);
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                if (pixels[i] == Color.Magenta || pixels[i] == ColorKey)
-                {
-                    pixels[i] = Color.Transparent;
-                }
-            }
-            loadTexture.SetData(pixels);
-            Tiles[num] = loadTexture;
-           //return loadTexture;
-        }
-        public void LoadCustomWall(int num, string modname, string name)
-        {
-            string SavePath = string.Concat(new object[]
-		    {
-			    Environment.GetFolderPath(Environment.SpecialFolder.Personal), 
-			    Path.DirectorySeparatorChar, 
-			    "My Games", 
-			    Path.DirectorySeparatorChar, 
-			    "Terraria"
-		    });
-            string folder = SavePath + Path.DirectorySeparatorChar + "ModPacks" + Path.DirectorySeparatorChar + modname + Path.DirectorySeparatorChar + "Wall" + Path.DirectorySeparatorChar + name + ".png";
-            FileStream f = new FileStream(folder, FileMode.Open);
-            //MemoryStream textureStream = new MemoryStream(reader.ReadBytes(textureBytes));
-            PresentationParameters p = new PresentationParameters();
-            p.DeviceWindowHandle = GraphicsAdapter.DefaultAdapter.MonitorHandle;
-            var loadTexture = Texture2D.FromStream(new GraphicsDevice(GraphicsAdapter.DefaultAdapter, GraphicsProfile.HiDef, p), f); var pixels = new Color[loadTexture.Height * loadTexture.Width];
-            loadTexture.GetData(pixels);
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                if (pixels[i] == Color.Magenta || pixels[i] == ColorKey)
-                {
-                    pixels[i] = Color.Transparent;
-                }
-            }
-            loadTexture.SetData(pixels);
-            Walls[num] = loadTexture;
-            //return loadTexture;
-        }
         public Texture2D GetTile(int num)
         {
             if (!Tiles.ContainsKey(num))
@@ -206,6 +150,41 @@ namespace TEditXNA.Terraria
         }
 
         private static Color ColorKey = Color.FromNonPremultiplied(247, 119, 249, 255);
+        public void LoadCustom(int num, string modname, string name, string type)
+        {
+            string SavePath = string.Concat(new object[]
+		    {
+			    Environment.GetFolderPath(Environment.SpecialFolder.Personal), 
+			    Path.DirectorySeparatorChar, 
+			    "My Games", 
+			    Path.DirectorySeparatorChar, 
+			    "Terraria"
+		    });
+            string folder = SavePath + Path.DirectorySeparatorChar + "ModPacks" + Path.DirectorySeparatorChar + modname + Path.DirectorySeparatorChar + type + Path.DirectorySeparatorChar + name + ".png";
+            FileStream f = new FileStream(folder, FileMode.Open);
+            //MemoryStream textureStream = new MemoryStream(reader.ReadBytes(textureBytes));
+
+            /*PresentationParameters p = new PresentationParameters();
+            GraphicsAdapter a = GraphicsAdapter.DefaultAdapter;
+            p.DeviceWindowHandle = a.MonitorHandle;
+            GraphicsDevice g = new GraphicsDevice(a, GraphicsProfile.HiDef, p);*/
+
+            var loadTexture = Texture2D.FromStream(TEditXna.Terraria.Config.world.xnaViewport.GraphicsService.GraphicsDevice, f);
+            f.Close();
+            var pixels = new Color[loadTexture.Height * loadTexture.Width];
+            loadTexture.GetData(pixels);
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                if (pixels[i] == Color.Magenta || pixels[i] == ColorKey)
+                {
+                    pixels[i] = Color.Transparent;
+                }
+            }
+            loadTexture.SetData(pixels);
+            if (type == "tile") Tiles[num] = loadTexture;
+            else if (type == "wall") Walls[num] = loadTexture;
+            //return loadTexture;
+        }
         private Texture2D LoadTexture(string path)
         {
             var loadTexture = _cm.Load<Texture2D>(path);
