@@ -11,6 +11,7 @@ using Ionic.Zip;
 using System.Web.Script.Serialization;
 using System.Text.RegularExpressions;
 using System.Collections;
+using TEditXna.Terraria;
 
 namespace TEditXNA.Terraria
 {
@@ -677,10 +678,13 @@ namespace TEditXNA.Terraria
                 OnProgressChanged(null, new ProgressChangedEventArgs(0, "World Load Complete."));
                 w.LastSave = File.GetLastWriteTimeUtc(filename);
             }
-            catch (Exception e)
+            catch (Exception err)
             {
-                //Debug.WriteLine("Load exception:\n" + e);
-                return w;
+                string msg = "There was an error reading the world file, do you wish to force it to load anyway?\r\n\r\n" +
+                             "WARNING: This may have unexpected results including corrupt world files and program crashes.\r\n\r\n" +
+                             "The error is :\r\n";
+                if (MessageBox.Show(msg + err, "World File Error", MessageBoxButton.YesNo, MessageBoxImage.Error) != MessageBoxResult.Yes)
+                    return null;
             }
             return w;
         }
@@ -763,7 +767,9 @@ namespace TEditXNA.Terraria
             w.InvasionX = Convert.ToSingle(header["gob_inv_x"], System.Globalization.CultureInfo.InvariantCulture.NumberFormat);
 
             //Custom tConfig info comes next...
-            /*
+            Config.tileDefs = new DefHandler();
+            Config.wallDefs = new DefHandler();
+
             ArrayList tiles = (ArrayList)dict["tiles"];
             for (int i = 0; i < tiles.Count; i++)
             {
@@ -771,22 +777,16 @@ namespace TEditXNA.Terraria
                 int id = (int)thetile[0];
                 string name = thetile[1].ToString();
                 Config.tileDefs.load[id] = name;
-            }
+                TileProperty p = new TileProperty();
+                p.Id = id;
+                p.Name = name;
+                p.IsFramed = Convert.ToBoolean((int)thetile[2]);
+                p.IsSolid = Convert.ToBoolean((int)thetile[3]);
 
-            Dictionary<string, object> modtiles = (Dictionary<string, object>)dict["modtiles"];
-            foreach (string str in modtiles.Keys)
-            {
-                ArrayList arr = (ArrayList)modtiles[str];
-                foreach (int id in arr)
-                    Config.tileDefs.loadModname[id] = str;
-            }
+                ArrayList colors = (ArrayList)thetile[4];
+                p.Color = System.Windows.Media.Color.FromArgb(255, (byte)(int)colors[0], (byte)(int)colors[1], (byte)(int)colors[2]);
 
-            Dictionary<string, object> modwalls = (Dictionary<string, object>)dict["modwalls"];
-            foreach (string str in modwalls.Keys)
-            {
-                ArrayList arr = (ArrayList)modwalls[str];
-                foreach (int id in arr)
-                    Config.wallDefs.loadModname[id] = str;
+                _tileProperties[id] = p;
             }
 
             ArrayList walls = (ArrayList)dict["walls"];
@@ -795,48 +795,85 @@ namespace TEditXNA.Terraria
                 ArrayList thewall = (ArrayList)walls[i];
                 int id = (int)thewall[0];
                 string name = thewall[1].ToString();
-                Debug.WriteLine("Wall load:" + id + "=" + name);
+                //Debug.WriteLine("Wall load:" + id + "=" + name);
                 Config.wallDefs.load[id] = name;
+
+                WallProperty p = new WallProperty();
+                p.Id = id;
+                p.Name = name;
+                ArrayList colors;
+                try
+                {
+                    colors = (ArrayList)thewall[2];
+                    p.Color = System.Windows.Media.Color.FromArgb((byte) 255, (byte)colors[0], (byte)colors[1], (byte)colors[2]);
+                }
+                catch (Exception e)
+                {
+                    //colors = new ArrayList(new int[]{0,0,0});
+                    p.Color = System.Windows.Media.Color.FromArgb(255, 255, 0, 255);
+                }
+                
+                _wallProperties[id] = p;
+             }
+
+            
+           // Config.tileDefs.loadModname = new Dictionary<int, string>();
+            Dictionary<string, object> modtiles = (Dictionary<string, object>)dict["modtiles"];
+            foreach (string str in modtiles.Keys)
+            {
+                ArrayList arr = (ArrayList)modtiles[str];
+                foreach (int id in arr)
+                {
+                    Config.tileDefs.loadModname[id] = str;
+                    Config.world._textureDictionary.LoadCustom(id, str, Config.tileDefs.load[id]);
+                }
             }
 
-            ArrayList modVersions = (ArrayList)dict["mods"];
+          //  
+          //  Config.wallDefs.loadModname = new Dictionary<int, string>();
+            Dictionary<string, object> modwalls = (Dictionary<string, object>)dict["modwalls"];
+            foreach (string str in modwalls.Keys)
+            {
+                ArrayList arr = (ArrayList)modwalls[str];
+                foreach (int id in arr)
+                {
+                    Config.wallDefs.loadModname[id] = str;
+                    Config.world._textureDictionary.LoadCustomWall(id, str, Config.wallDefs.load[id]);
+                }
+            }
+
+            /*ArrayList modVersions = (ArrayList)dict["mods"];
             for (int i = 0; i < modVersions.Count; i++)
             {
                 ArrayList theversion = (ArrayList)modVersions[i];
                 string name = theversion[0].ToString();
                 int v = (int)theversion[1];
                 Config.loadedVersion[name] = v;
-            }
+            }*/
 
-            // bool unloadedItemCheck = false;
-            ArrayList items = (ArrayList)dict["items"];
-            //int lastID=0;
+            /*ArrayList items = (ArrayList)dict["items"];
             for (int i = 0; i < items.Count; i++)
             {
                 ArrayList theitem = (ArrayList)items[i];
                 int id = (int)theitem[0];
                 string name = theitem[1].ToString();
-                Config.itemDefs.worldLoad[id] = name;
-                //if (name == "Unloaded Item") unloadedItemCheck = true;
-                //lastID=id;
-            }
-            // if (!unloadedItemCheck) Config.itemDefs.worldLoad[lastID + 1] = "Unloaded Item";
+                Config.itemDefs.load[id] = name;
+            }*/
 
             Dictionary<string, object> npcnames = (Dictionary<string, object>)dict["npcnames"];
             foreach (string key in npcnames.Keys)
             {
-                //int id = Convert.ToInt32(key);
                 string name = npcnames[key].ToString();
-                Debug.WriteLine("Assigning NPC name for " + key + " to " + name);
+                //Debug.WriteLine("Assigning NPC name for " + key + " to " + name);
                 try
                 {
-                    Main.chrName[Config.npcDefs.byName[key].type] = name;
+                    w.CharacterNames.Add(new NpcName(Config.npcDefs[key], name));
                 }
                 catch (Exception e)
                 {
                     throw new Exception("Error: NPC " + key + " is unknown, are you missing a mod?");
                 }
-            }*/
+            }
             // Main.chrName[Main.npc[num7].type] = newReader.ReadString()
             return new int[] { baseVersion, tConfigRelease };
         }
@@ -907,8 +944,8 @@ namespace TEditXNA.Terraria
                                     }
                                 }*/
 
-                                if (tile.Type == (int)sbyte.MaxValue)
-                                    tile.IsActive = false;
+                               // if (tile.Type == (int)sbyte.MaxValue)
+                                //    tile.IsActive = false;
 
                                 if (tileProperty.IsFramed)
                                 {

@@ -20,10 +20,10 @@ namespace TEditXNA.Terraria
         private static readonly Dictionary<string, int> _npcIds = new Dictionary<string, int>();
         private static readonly Dictionary<int, int> _npcFrames = new Dictionary<int, int>();
         private static readonly Dictionary<byte, string> _prefix = new Dictionary<byte, string>();
-        private static readonly ObservableCollection<ItemProperty> _itemProperties = new ObservableCollection<ItemProperty>();
-        private static readonly ObservableCollection<TileProperty> _tileProperties = new ObservableCollection<TileProperty>();
+        public static readonly ObservableCollection<ItemProperty> _itemProperties = new ObservableCollection<ItemProperty>();
+        private static Collection<TileProperty> _tileProperties = new Collection<TileProperty>();
         private static readonly ObservableCollection<TileProperty> _tileBricks = new ObservableCollection<TileProperty>();
-        private static readonly ObservableCollection<WallProperty> _wallProperties = new ObservableCollection<WallProperty>();
+        public static Collection<WallProperty> _wallProperties = new Collection<WallProperty>();
 
         private static readonly ObservableCollection<Sprite> _sprites = new ObservableCollection<Sprite>();
         private static readonly Dictionary<Key, string> _shortcuts = new Dictionary<Key, string>();
@@ -208,6 +208,10 @@ namespace TEditXNA.Terraria
                 curWall.IsHouse = (bool?)xElement.Attribute("IsHouse") ?? false;
                 WallProperties.Add(curWall);
             }
+            for (int i = WallProperties.Count; i < 255; i++)
+            {
+                WallProperties.Add(new WallProperty(i, "UNKNOWN", Color.FromArgb(255, 255, 0, 255)));
+            }
 
             foreach (var xElement in xmlSettings.Elements("Items").Elements("Item"))
             {
@@ -317,7 +321,7 @@ namespace TEditXNA.Terraria
             get { return _shortcuts; }
         }
 
-        public static ObservableCollection<TileProperty> TileProperties
+        public static Collection<TileProperty> TileProperties
         {
             get { return _tileProperties; }
         }
@@ -331,7 +335,7 @@ namespace TEditXNA.Terraria
             }
         }
 
-        public static ObservableCollection<WallProperty> WallProperties
+        public static Collection<WallProperty> WallProperties
         {
             get { return _wallProperties; }
         }

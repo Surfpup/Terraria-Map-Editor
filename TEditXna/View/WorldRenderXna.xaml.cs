@@ -35,7 +35,7 @@ namespace TEditXna.View
         private Vector2 _scrollPosition = new Vector2(0, 0);
         private SimpleProvider _serviceProvider;
         private SpriteBatch _spriteBatch;
-        private Textures _textureDictionary;
+        public Textures _textureDictionary;
         private Texture2D[] _tileMap;
         private Texture2D _preview;
         private Dictionary<string, Texture2D> _textures = new Dictionary<string, Texture2D>();
@@ -45,6 +45,7 @@ namespace TEditXna.View
 
         public WorldRenderXna()
         {
+            TEditXna.Terraria.Config.world = this;
             // to stop visual studio design time crash :(
             if (!Debugging.IsInDesignMode)
             {
